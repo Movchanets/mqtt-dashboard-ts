@@ -61,7 +61,7 @@ function App() {
   return (
     <div style={{ padding: "20px", fontFamily: "Arial" }}>
       <h2>📊 ESP32 DHT22 Live Data (TypeScript + SWC)</h2>
-      <LineChart width={800} height={400} data={data}>
+      <LineChart width={1080} height={600} data={data}>
         <CartesianGrid strokeDasharray="3 3" />
         <XAxis dataKey="timestamp" />
         <YAxis />
