@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "homepage": "https://movchanets.github.io/mqtt-dashboard-ts",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
@@ -11,7 +12,7 @@
     "predeploy": "npm run build",
     "deploy": "gh-pages -d dist"
   },
-  "homepage": "https://Movchanets.github.io/mqtt-dashboard-ts",
+
   "dependencies": {
     "mqtt": "^5.14.1",
     "react": "^19.1.1",
