@@ -34,7 +34,7 @@ function App() {
 
   client.on("connect", () => {
     console.log("✅ Connected to HiveMQ Cloud");
-    client.subscribe("esp32/dht22"); // топік ESP32
+    client.subscribe("esp32/dht11"); // топік ESP32
   });
 
   client.on("message", (_topic: string, message: Buffer) => {
