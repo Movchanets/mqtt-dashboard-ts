@@ -1,73 +1,301 @@
-# React + TypeScript + Vite
+# 🌡️ MQTT Dashboard для ESP32 + DHT11
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://reactjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?logo=typescript)](https://www.typescriptlang.org/)
+[![Vite](https://img.shields.io/badge/Vite-Latest-646CFF?logo=vite)](https://vitejs.dev/)
+[![ESP32](https://img.shields.io/badge/ESP32-Arduino-00979D?logo=arduino)](https://www.arduino.cc/)
 
-Currently, two official plugins are available:
+Повнофункціональний IoT дашборд для моніторингу температури та вологості в реальному часі з ESP32 через MQTT (HiveMQ Cloud).
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## 📸 Особливості
 
-## React Compiler
+- 📊 **Різноманітні типи графіків**: лінійний, площинний, стовпчастий, комбінований, точковий
+- ⏱️ **Гнучкі діапазони часу**: від 5 хвилин до 24 годин + всі дані
+- 🎨 **RGB LED індикація** на ESP32: динамічна зміна кольору відповідно до температури
+- 💾 **Збереження налаштувань**: автоматичне збереження обраних параметрів у localStorage
+- 🔄 **Автоматичне перепідключення**: надійна обробка помилок MQTT
+- 📱 **Адаптивний дизайн**: повна підтримка мобільних пристроїв
+- 🔒 **Безпека**: змінні оточення для креденшлів
+- 🌐 **Real-time**: миттєве оновлення даних через WebSocket
 
-The React Compiler is currently not compatible with SWC. See [this issue](https://github.com/vitejs/vite-plugin-react/issues/428) for tracking the progress.
+## 🛠️ Технології
 
-## Expanding the ESLint configuration
+### Frontend
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- **React 19** - сучасна бібліотека для UI
+- **TypeScript** - статична типізація
+- **Vite** - швидкий bundler з HMR
+- **Tailwind CSS** - utility-first CSS framework
+- **Recharts** - бібліотека для графіків
+- **MQTT.js** - клієнт MQTT для WebSocket
+- **date-fns** - робота з датами
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+### Hardware
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+- **ESP32** - мікроконтролер
+- **DHT11/DHT22** - сенсор температури та вологості
+- **RGB LED** - візуальна індикація
+- **OLED SSD1306** - локальний дисплей
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## 🚀 Швидкий старт
+
+### 1. Клонування репозиторію
+
+```bash
+git clone https://github.com/Movchanets/mqtt-dashboard-ts.git
+cd mqtt-dashboard-ts
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### 2. Налаштування React додатку
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+#### Встановлення залежностей
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
 ```
+
+#### Конфігурація MQTT
+
+Створіть файл `.env` на основі `.env.example`:
+
+```bash
+cp .env.example .env
+```
+
+Відредагуйте `.env` своїми креденшлами HiveMQ:
+
+```env
+VITE_MQTT_BROKER=wss://your-cluster.s1.eu.hivemq.cloud:8884/mqtt
+VITE_MQTT_USERNAME=your-username
+VITE_MQTT_PASSWORD=your-password
+VITE_MQTT_TOPIC=esp32/dht11
+```
+
+#### Запуск dev сервера
+
+```bash
+npm run dev
+```
+
+Додаток буде доступний за адресою: `http://localhost:5173`
+
+### 3. Налаштування ESP32
+
+#### Необхідні бібліотеки Arduino
+
+Встановіть через Arduino Library Manager:
+
+- Adafruit SSD1306
+- Adafruit GFX
+- DHT sensor library
+- PubSubClient
+- WiFiClientSecure (вбудована)
+
+#### Конфігурація ESP32
+
+Створіть файл `Arduino/secrets.h` на основі `Arduino/secrets.h.example`:
+
+```cpp
+#define WIFI_SSID "Your_WiFi_Name"
+#define WIFI_PASSWORD "Your_WiFi_Password"
+
+#define MQTT_SERVER "your-cluster.s1.eu.hivemq.cloud"
+#define MQTT_PORT 8883
+#define MQTT_CLIENT_ID "ESP32-DHT11"
+#define MQTT_TOPIC "esp32/dht11"
+#define MQTT_USER "your-mqtt-username"
+#define MQTT_PASSWORD "your-mqtt-password"
+
+#define NTP_SERVER "pool.ntp.org"
+#define GMT_OFFSET_SEC (3 * 3600)  // Ваш часовий пояс
+#define DAYLIGHT_OFFSET_SEC 0
+```
+
+#### Підключення Hardware
+
+```
+ESP32 <-> Компоненти:
+├─ DHT11
+│  ├─ Data  → GPIO 13
+│  ├─ VCC   → 3.3V
+│  └─ GND   → GND
+├─ RGB LED
+│  ├─ Red   → GPIO 18 (через резистор ~220Ω)
+│  ├─ Green → GPIO 19 (через резистор ~220Ω)
+│  ├─ Blue  → GPIO 5 (через резистор ~220Ω)
+│  └─ GND   → GND
+└─ OLED SSD1306
+   ├─ SDA   → GPIO 21
+   ├─ SCL   → GPIO 22
+   ├─ VCC   → 3.3V
+   └─ GND   → GND
+```
+
+⚠️ **Важливо**: Порти залишаються незмінними, як у вашій схемі.
+
+#### Завантаження коду
+
+1. Відкрийте `Arduino/program.ino` в Arduino IDE
+2. Виберіть плату: **ESP32 Dev Module**
+3. Виберіть правильний COM-порт
+4. Натисніть **Upload**
+
+## 📊 RGB LED Індикація
+
+ESP32 використовує RGB LED для візуального показу статусу:
+
+| Колір         | Значення                                    |
+| ------------- | ------------------------------------------- |
+| 🔴 Червоний   | Помилка MQTT/WiFi                           |
+| 🔵 Синій      | Підключення до MQTT/NTP                     |
+| 🟡 Жовтий     | Підключення до WiFi                         |
+| 🟣 Фіолетовий | Помилка сенсора DHT                         |
+| ⚪ Білий      | Критична помилка OLED                       |
+| 🌈 Градієнт   | Нормальна робота (залежить від температури) |
+
+### Теплова карта температури:
+
+- < 18°C: 🔵 Синій (холодно)
+- 18-20.5°C: 🔵→🟦 Синій→Блакитний
+- 20.5-23°C: 🟦→🟢 Блакитний→Зелений
+- 23-25.5°C: 🟢→🟡 Зелений→Жовтий
+- 25.5-28°C: 🟡→🔴 Жовтий→Червоний
+- > 28°C: 🔴 Червоний (спекотно)
+
+## 🎯 Функції дашборду
+
+### Статистика в реальному часі
+
+- Середня/мін/макс температура
+- Середня/мін/макс вологість
+- Кількість точок даних
+- Час останнього оновлення
+
+### Налаштування візуалізації
+
+- **Діапазони часу**: 5м, 15м, 30м, 1г, 3г, 6г, 12г, 24г, всі дані
+- **Типи графіків**: лінійний, площинний, стовпчастий, комбінований, точковий
+
+### Обробка помилок
+
+- Автоматичне перепідключення при втраті зв'язку
+- Візуальні індикатори статусу підключення
+- Повідомлення про помилки для користувача
+
+## 🔧 Скрипти
+
+```bash
+# Розробка
+npm run dev          # Запуск dev сервера
+
+# Продакшн
+npm run build        # Збірка для production
+npm run preview      # Попередній перегляд production білда
+
+# Код якості
+npm run lint         # Запуск ESLint
+
+# Деплой
+npm run deploy       # Деплой на GitHub Pages
+```
+
+## 🌐 Деплой на GitHub Pages
+
+1. Переконайтеся, що `vite.config.ts` містить правильний `base`:
+
+```typescript
+export default defineConfig({
+  base: "/mqtt-dashboard-ts/", // Ваша назва репозиторію
+  plugins: [react()],
+});
+```
+
+2. Виконайте деплой:
+
+```bash
+npm run deploy
+```
+
+Дашборд буде доступний за адресою: `https://username.github.io/mqtt-dashboard-ts/`
+
+## 📁 Структура проекту
+
+```
+mqtt-dashboard-ts/
+├── Arduino/
+│   ├── program.ino           # Основний код ESP32
+│   ├── secrets.h             # Креденшли (не в git)
+│   └── secrets.h.example     # Шаблон креденшлів
+├── src/
+│   ├── App.tsx              # Головний компонент React
+│   ├── main.tsx             # Точка входу
+│   ├── index.css            # Глобальні стилі
+│   └── assets/              # Статичні ресурси
+├── .env                     # Змінні оточення (не в git)
+├── .env.example             # Шаблон змінних оточення
+├── package.json             # Залежності та скрипти
+├── vite.config.ts           # Конфігурація Vite
+├── tsconfig.json            # Конфігурація TypeScript
+└── README.md                # Ця документація
+```
+
+## 🔐 Безпека
+
+- ✅ Креденшли винесені в `.env` та `secrets.h`
+- ✅ Файли з креденшлами додані в `.gitignore`
+- ✅ Надані `.example` файли для швидкого налаштування
+- ⚠️ **Ніколи не комітьте** `.env` або `secrets.h` в git!
+
+## 🐛 Вирішення проблем
+
+### ESP32 не підключається до WiFi
+
+- Перевірте правильність SSID та пароля в `secrets.h`
+- Переконайтеся, що WiFi працює на 2.4GHz (ESP32 не підтримує 5GHz)
+
+### MQTT не з'єднується
+
+- Перевірте креденшли HiveMQ
+- Переконайтеся, що порт 8883 відкритий
+- Перевірте квоту HiveMQ Cloud (безкоштовний план має ліміти)
+
+### Дані не відображаються в дашборді
+
+- Відкрийте консоль браузера (F12) для діагностики
+- Перевірте статус підключення в інтерфейсі
+- Переконайтеся, що ESP32 публікує дані (Serial Monitor)
+
+### Сенсор DHT11 показує NaN
+
+- Перевірте підключення сенсора
+- Додайте підтягуючий резистор 10kΩ між Data та VCC
+- Спробуйте інший пін або сенсор
+
+## 📈 Майбутні покращення
+
+- [ ] Експорт даних у CSV
+- [ ] Налаштування сповіщень про пороги
+- [ ] Підтримка декількох ESP32 пристроїв
+- [ ] Історія даних в базі даних
+- [ ] PWA підтримка для офлайн режиму
+
+## 📄 Ліцензія
+
+MIT License - вільний для використання в особистих та комерційних проектах.
+
+## 👨‍💻 Автор
+
+**Movchanets**
+
+- GitHub: [@Movchanets](https://github.com/Movchanets)
+- Проект: [mqtt-dashboard-ts](https://github.com/Movchanets/mqtt-dashboard-ts)
+
+## 🙏 Подяки
+
+- [HiveMQ Cloud](https://www.hivemq.com/cloud/) за безкоштовний MQTT брокер
+- [Recharts](https://recharts.org/) за чудову бібліотеку графіків
+- [Adafruit](https://www.adafruit.com/) за бібліотеки для Arduino
+
+---
+
+Якщо проект був корисним, поставте ⭐ на GitHub!
