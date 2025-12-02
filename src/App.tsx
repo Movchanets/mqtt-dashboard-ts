@@ -17,8 +17,31 @@ import {
   ScatterChart,
   Scatter,
 } from "recharts";
-import { ClockIcon, WifiIcon, SignalIcon, CloudArrowDownIcon } from "@heroicons/react/24/outline";
 import { format, subMinutes, isAfter } from "date-fns";
+import {
+  Thermometer,
+  Droplets,
+  Activity,
+  Database,
+  Wifi,
+  WifiOff,
+  Clock,
+  CloudDownload,
+  AlertCircle,
+  BarChart3,
+  LineChartIcon,
+  AreaChartIcon,
+  ScatterChartIcon,
+} from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 // Тип даних для кожного повідомлення
 interface MqttPayload {
@@ -233,10 +256,10 @@ function App() {
       setIsLoadingHistory(true);
       try {
         // Firebase REST API: GET /measurements.json returns all data
-        // Add orderBy and limitToLast for recent records
-        let url = `${FIREBASE_URL}/measurements.json?orderBy="timestamp"&limitToLast=500`;
+        // We'll fetch all and sort/limit on client side (simpler, no index needed)
+        let url = `${FIREBASE_URL}/measurements.json`;
         if (FIREBASE_AUTH) {
-          url += `&auth=${FIREBASE_AUTH}`;
+          url += `?auth=${FIREBASE_AUTH}`;
         }
 
         const res = await fetch(url);
@@ -246,7 +269,7 @@ function App() {
         }
 
         const data: FirebaseResponse | null = await res.json();
-        
+        console.log('Firebase historical data fetched:', data);
         if (!data) {
           console.log('No historical data in Firebase');
           setHistoryLoaded(true);
@@ -264,7 +287,8 @@ function App() {
               fullTimestamp
             };
           })
-          .sort((a, b) => a.fullTimestamp.getTime() - b.fullTimestamp.getTime()); // Сортуємо від старіших до новіших
+          .sort((a, b) => a.fullTimestamp.getTime() - b.fullTimestamp.getTime()) // Сортуємо від старіших до новіших
+          .slice(-500); // Беремо останні 500 записів
 
         setAllData(historicalData);
         setHistoryLoaded(true);
@@ -404,229 +428,272 @@ function App() {
     };
   }, []);
 
+  const getConnectionBadge = () => {
+    switch (connectionStatus) {
+      case 'connected':
+        return (
+          <Badge variant="success" className="gap-1.5">
+            <Wifi className="h-3 w-3" />
+            Підключено
+          </Badge>
+        );
+      case 'connecting':
+        return (
+          <Badge variant="warning" className="gap-1.5 animate-pulse">
+            <Activity className="h-3 w-3" />
+            Підключення...
+          </Badge>
+        );
+      default:
+        return (
+          <Badge variant="destructive" className="gap-1.5">
+            <WifiOff className="h-3 w-3" />
+            Відключено
+          </Badge>
+        );
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50 centered flex ">
-      {/* Mobile-first container */}
-      <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
-        {/* Header - Mobile First */}
-        <div className="mb-6">
-          <div className="text-center sm:text-left">
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
-              📊 ESP32 DHT11 Dashboard
-            </h1>
-            <p className="text-sm sm:text-base text-gray-600 mb-4">
-              Real-time temperature and humidity monitoring
-            </p>
-          </div>
-          
-          {/* Status indicators - Mobile friendly */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            {/* Connection Status */}
-            <div className={`inline-flex items-center justify-center px-3 py-2 rounded-lg text-sm font-medium ${
-              connectionStatus === 'connected' ? 'bg-green-100 text-green-800 border border-green-200' :
-              connectionStatus === 'connecting' ? 'bg-yellow-100 text-yellow-800 border border-yellow-200' :
-              'bg-red-100 text-red-800 border border-red-200'
-            }`}>
-              {connectionStatus === 'connected' && <WifiIcon className="w-3 h-3 mr-1 flex-shrink-0" style={{maxWidth: '12px', maxHeight: '12px'}} />}
-              {connectionStatus === 'connecting' && <SignalIcon className="w-3 h-3 mr-1 flex-shrink-0 animate-pulse" style={{maxWidth: '12px', maxHeight: '12px'}} />}
-              {connectionStatus === 'disconnected' && <WifiIcon className="w-3 h-3 mr-1 flex-shrink-0" style={{maxWidth: '12px', maxHeight: '12px'}} />}
-              {connectionStatus === 'connected' ? 'Підключено' : 
-               connectionStatus === 'connecting' ? 'Підключення...' : 'Відключено'}
-            </div>
-            
-            {/* Last Update */}
-            {lastUpdate && (
-              <div className="flex items-center justify-center sm:justify-start text-sm text-gray-500">
-                <ClockIcon className="w-3 h-3 mr-1 flex-shrink-0" style={{maxWidth: '12px', maxHeight: '12px'}} />
-                Останнє оновлення: {format(lastUpdate, 'HH:mm:ss')}
-              </div>
-            )}
-
-            {/* MongoDB History Status */}
-            {isLoadingHistory && (
-              <div className="flex items-center justify-center sm:justify-start text-sm text-blue-600">
-                <CloudArrowDownIcon className="w-4 h-4 mr-1 flex-shrink-0 animate-pulse" />
-                Завантаження історії...
-              </div>
-            )}
-            {historyLoaded && !isLoadingHistory && (
-              <div className="flex items-center justify-center sm:justify-start text-sm text-green-600">
-                <CloudArrowDownIcon className="w-4 h-4 mr-1 flex-shrink-0" />
-                Історію завантажено ({allData.length} записів)
-              </div>
-            )}
-          </div>
-          
-          {/* Error Banner */}
-          {error && (
-            <div className="mt-4 bg-red-50 border-l-4 border-red-500 p-4 rounded-lg">
-              <div className="flex items-center">
-                <div className="flex-shrink-0">
-                  <svg className="h-5 w-5 text-red-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                  </svg>
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm text-red-700 font-medium">{error}</p>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-        
-
-        {/* Stats Cards - Mobile First Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white rounded-xl p-4 shadow-lg border border-gray-200">
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-sm font-medium text-gray-600">Середня температура</div>
-              <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-            </div>
-            <div className="text-2xl sm:text-3xl font-bold text-red-600 mb-1">
-              {stats.avgTemp.toFixed(1)}°C
-            </div>
-            <div className="text-xs text-gray-500">
-              {stats.minTemp.toFixed(1)}°C - {stats.maxTemp.toFixed(1)}°C
-            </div>
-          </div>
-          
-          <div className="bg-white rounded-xl p-4 shadow-lg border border-gray-200">
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-sm font-medium text-gray-600">Середня вологість</div>
-              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-            </div>
-            <div className="text-2xl sm:text-3xl font-bold text-blue-600 mb-1">
-              {stats.avgHumidity.toFixed(1)}%
-            </div>
-            <div className="text-xs text-gray-500">
-              {stats.minHumidity.toFixed(1)}% - {stats.maxHumidity.toFixed(1)}%
-            </div>
-          </div>
-          
-          <div className="bg-white rounded-xl p-4 shadow-lg border border-gray-200">
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-sm font-medium text-gray-600">Точок даних</div>
-              <div className="w-2 h-2 bg-indigo-500 rounded-full"></div>
-            </div>
-            <div className="text-2xl sm:text-3xl font-bold text-indigo-600 mb-1">
-              {filteredData.length}
-            </div>
-            <div className="text-xs text-gray-500">за обраний період</div>
-          </div>
-          
-          <div className="bg-white rounded-xl p-4 shadow-lg border border-gray-200">
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-sm font-medium text-gray-600">Всього даних</div>
-              <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-            </div>
-            <div className="text-2xl sm:text-3xl font-bold text-purple-600 mb-1">
-              {allData.length}
-            </div>
-            <div className="text-xs text-gray-500">збережено</div>
-          </div>
-        </div>
-
-
-        {/* Controls - Mobile First */}
-        <div className="bg-white rounded-xl p-4 sm:p-6 shadow-lg border border-gray-200 mb-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4 text-center sm:text-left">
-            Налаштування візуалізації
-          </h3>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Time Range Selector */}
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+      <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
+        {/* Header */}
+        <header className="mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                🕰️ Діапазон часу
-              </label>
-              <select 
-                value={selectedTimeRange.id}
-                onChange={(e) => setSelectedTimeRange(timeRangeOptions.find(opt => opt.id === e.target.value) || timeRangeOptions[2])}
-                className="w-full px-4 py-3 bg-white border-2 border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 font-medium text-base appearance-none cursor-pointer transition-all duration-200"
-                style={{backgroundImage: "url(\"data:image/svg+xml;charset=utf8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23374151' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e\")", backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center', backgroundSize: '16px 12px'}}
-              >
-                {timeRangeOptions.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            
-            {/* Chart Type Selector */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                📊 Тип графіка
-              </label>
-              <select 
-                value={selectedChartType.id}
-                onChange={(e) => setSelectedChartType(chartTypes.find(type => type.id === e.target.value) || chartTypes[0])}
-                className="w-full px-4 py-3 bg-white border-2 border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 font-medium text-base appearance-none cursor-pointer transition-all duration-200"
-                style={{backgroundImage: "url(\"data:image/svg+xml;charset=utf8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23374151' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e\")", backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center', backgroundSize: '16px 12px'}}
-              >
-                {chartTypes.map((type) => (
-                  <option key={type.id} value={type.id}>
-                    {type.icon} {type.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* Chart - Mobile First */}
-        <div className="bg-white rounded-xl p-4 sm:p-6 shadow-lg border border-gray-200">
-          {/* Chart Header */}
-          <div className="mb-4 sm:mb-6">
-            <div className="text-center sm:text-left">
-              <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">
-                {selectedChartType.icon} {selectedChartType.name}
-              </h3>
-              <p className="text-sm text-gray-600 mb-4">
-                Відображає дані за {selectedTimeRange.name.toLowerCase()}
+              <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
+                ESP32 DHT11 Dashboard
+              </h1>
+              <p className="text-slate-500 mt-1">
+                Real-time temperature and humidity monitoring
               </p>
             </div>
             
-            {/* Legend - Mobile friendly */}
-            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-4 text-sm">
-              <div className="flex items-center">
-                <div className="w-3 h-3 bg-red-500 rounded-full mr-2"></div>
-                <span className="font-medium">Температура</span>
-              </div>
-              <div className="flex items-center">
-                <div className="w-3 h-3 bg-blue-500 rounded-full mr-2"></div>
-                <span className="font-medium">Вологість</span>
-              </div>
-              <div className="text-gray-500 font-medium">
-                Точок: {filteredData.length}
-              </div>
+            <div className="flex flex-wrap items-center gap-3">
+              {getConnectionBadge()}
+              
+              {lastUpdate && (
+                <Badge variant="outline" className="gap-1.5 text-slate-600">
+                  <Clock className="h-3 w-3" />
+                  {format(lastUpdate, 'HH:mm:ss')}
+                </Badge>
+              )}
+
+              {isLoadingHistory && (
+                <Badge variant="secondary" className="gap-1.5 animate-pulse">
+                  <CloudDownload className="h-3 w-3" />
+                  Завантаження...
+                </Badge>
+              )}
+              
+              {historyLoaded && !isLoadingHistory && (
+                <Badge variant="secondary" className="gap-1.5">
+                  <Database className="h-3 w-3" />
+                  {allData.length} записів
+                </Badge>
+              )}
             </div>
           </div>
           
-          {/* Chart Container - Mobile responsive */}
-          <div className="h-64 sm:h-80 lg:h-96 w-full bg-gray-50 rounded-xl p-2 sm:p-4">
-            {filteredData.length > 0 ? (
-              <ChartRenderer 
-                chartType={selectedChartType.id}
-                data={filteredData}
-              />
-            ) : (
-              <div className="flex items-center justify-center h-full">
-                <div className="text-center">
-                  <SignalIcon className="w-8 h-8 text-gray-400 mx-auto mb-4" style={{maxWidth: '32px', maxHeight: '32px'}} />
-                  <p className="text-base sm:text-lg text-gray-500 font-medium mb-2">Очікування даних...</p>
-                  <p className="text-sm text-gray-400 px-4">
-                    Переконайтеся, що ESP32 підключений
-                  </p>
+          {/* Error Alert */}
+          {error && (
+            <div className="mt-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
+              <AlertCircle className="h-5 w-5 flex-shrink-0" />
+              <span className="text-sm font-medium">{error}</span>
+            </div>
+          )}
+        </header>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-slate-600">
+                Середня температура
+              </CardTitle>
+              <Thermometer className="h-4 w-4 text-red-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-red-600">
+                {stats.avgTemp.toFixed(1)}°C
+              </div>
+              <p className="text-xs text-slate-500 mt-1">
+                {stats.minTemp.toFixed(1)}°C — {stats.maxTemp.toFixed(1)}°C
+              </p>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-slate-600">
+                Середня вологість
+              </CardTitle>
+              <Droplets className="h-4 w-4 text-blue-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-blue-600">
+                {stats.avgHumidity.toFixed(1)}%
+              </div>
+              <p className="text-xs text-slate-500 mt-1">
+                {stats.minHumidity.toFixed(1)}% — {stats.maxHumidity.toFixed(1)}%
+              </p>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-slate-600">
+                Точок даних
+              </CardTitle>
+              <Activity className="h-4 w-4 text-indigo-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-indigo-600">
+                {filteredData.length}
+              </div>
+              <p className="text-xs text-slate-500 mt-1">
+                за обраний період
+              </p>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-slate-600">
+                Всього даних
+              </CardTitle>
+              <Database className="h-4 w-4 text-purple-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-purple-600">
+                {allData.length}
+              </div>
+              <p className="text-xs text-slate-500 mt-1">
+                збережено
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Controls */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Налаштування візуалізації</CardTitle>
+            <CardDescription>Оберіть діапазон часу та тип графіка</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700">
+                  Діапазон часу
+                </label>
+                <Select
+                  value={selectedTimeRange.id}
+                  onValueChange={(value: string) => 
+                    setSelectedTimeRange(timeRangeOptions.find(opt => opt.id === value) || timeRangeOptions[2])
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Оберіть період" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {timeRangeOptions.map((option) => (
+                      <SelectItem key={option.id} value={option.id}>
+                        {option.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700">
+                  Тип графіка
+                </label>
+                <Select
+                  value={selectedChartType.id}
+                  onValueChange={(value: string) =>
+                    setSelectedChartType(chartTypes.find(type => type.id === value) || chartTypes[0])
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Оберіть тип" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {chartTypes.map((type) => (
+                      <SelectItem key={type.id} value={type.id}>
+                        <span className="flex items-center gap-2">
+                          {type.id === 'line' && <LineChartIcon className="h-4 w-4" />}
+                          {type.id === 'area' && <AreaChartIcon className="h-4 w-4" />}
+                          {type.id === 'bar' && <BarChart3 className="h-4 w-4" />}
+                          {type.id === 'composed' && <LineChartIcon className="h-4 w-4" />}
+                          {type.id === 'scatter' && <ScatterChartIcon className="h-4 w-4" />}
+                          {type.name}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Chart */}
+        <Card>
+          <CardHeader>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  {selectedChartType.id === 'line' && <LineChartIcon className="h-5 w-5" />}
+                  {selectedChartType.id === 'area' && <AreaChartIcon className="h-5 w-5" />}
+                  {selectedChartType.id === 'bar' && <BarChart3 className="h-5 w-5" />}
+                  {selectedChartType.id === 'composed' && <LineChartIcon className="h-5 w-5" />}
+                  {selectedChartType.id === 'scatter' && <ScatterChartIcon className="h-5 w-5" />}
+                  {selectedChartType.name}
+                </CardTitle>
+                <CardDescription>
+                  Відображає дані за {selectedTimeRange.name.toLowerCase()}
+                </CardDescription>
+              </div>
+              
+              <div className="flex items-center gap-4 text-sm">
+                <div className="flex items-center gap-1.5">
+                  <div className="h-3 w-3 rounded-full bg-red-500" />
+                  <span className="text-slate-600">Температура</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="h-3 w-3 rounded-full bg-blue-500" />
+                  <span className="text-slate-600">Вологість</span>
                 </div>
               </div>
-            )}
-          </div>
-        </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="h-64 sm:h-80 lg:h-96 w-full rounded-lg bg-slate-50/50 p-2 sm:p-4">
+              {filteredData.length > 0 ? (
+                <ChartRenderer 
+                  chartType={selectedChartType.id}
+                  data={filteredData}
+                />
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center">
+                    <Activity className="w-10 h-10 text-slate-300 mx-auto mb-4" />
+                    <p className="text-lg text-slate-500 font-medium mb-1">
+                      Очікування даних...
+                    </p>
+                    <p className="text-sm text-slate-400">
+                      Переконайтеся, що ESP32 підключений
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
-    
-
   );
 }
 
