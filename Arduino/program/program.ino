@@ -4,9 +4,10 @@
 #include <Wire.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
+#include <HTTPClient.h>
 #include <PubSubClient.h>
 #include "time.h"
-#include "secrets.h" // Файл з приватними даними (WiFi, MQTT)
+#include "secrets.h" // Файл з приватними даними (WiFi, MQTT, Firebase)
 
 // === Піни для RGB LED ===
 #define RED_PIN 18
@@ -35,6 +36,10 @@ const char *mqtt_pass = MQTT_PASSWORD;
 const char *ntpServer = NTP_SERVER;
 const long gmtOffset_sec = GMT_OFFSET_SEC;
 const int daylightOffset_sec = DAYLIGHT_OFFSET_SEC;
+
+// Firebase Realtime Database
+const char *firebase_host = FIREBASE_HOST; // e.g. "your-project.firebaseio.com"
+const char *firebase_auth = FIREBASE_AUTH; // Database secret or Auth token
 
 WiFiClientSecure secureClient;
 PubSubClient client(secureClient);
@@ -124,6 +129,57 @@ void updateLedColor(float temp)
 	}
 
 	setRGB(r, g, b);
+}
+
+// ---------------- Firebase Realtime Database POST ----------------
+void sendToFirebase(float temperature, float humidity, String timestamp)
+{
+	WiFiClientSecure firebaseClient;
+	firebaseClient.setInsecure(); // Для спрощення; у production використовуйте сертифікати
+
+	HTTPClient https;
+	// Firebase REST API: POST to /measurements.json creates a new entry with auto-generated key
+	String url = String("https://") + firebase_host + "/measurements.json?auth=" + firebase_auth;
+
+	// Формуємо JSON payload
+	String json = "{";
+	json += "\"device_id\":\"esp32-dht11\",";
+	json += "\"temperature\":" + String(temperature, 1) + ",";
+	json += "\"humidity\":" + String(humidity, 1) + ",";
+	json += "\"timestamp\":\"" + timestamp + "\"";
+	json += "}";
+
+	Serial.println("Firebase POST: " + url);
+
+	if (https.begin(firebaseClient, url))
+	{
+		https.addHeader("Content-Type", "application/json");
+
+		int httpCode = https.POST(json);
+		if (httpCode > 0)
+		{
+			Serial.printf("Firebase response: %d\n", httpCode);
+			if (httpCode == 200)
+			{
+				String response = https.getString();
+				Serial.println("Firebase insert SUCCESS: " + response);
+			}
+			else
+			{
+				String response = https.getString();
+				Serial.println("Firebase error: " + response);
+			}
+		}
+		else
+		{
+			Serial.printf("Firebase POST failed: %s\n", https.errorToString(httpCode).c_str());
+		}
+		https.end();
+	}
+	else
+	{
+		Serial.println("Firebase HTTPS connection failed");
+	}
 }
 
 // ---------------- MQTT reconnect ----------------
@@ -306,6 +362,9 @@ void loop()
 					Serial.println("MQTT publish SUCCESS");
 					lastSuccessfulMQTT = millis();
 					consecutiveErrors = 0;
+
+					// Також відправляємо в Firebase
+					sendToFirebase(t, h, timestr);
 				}
 				else
 				{
