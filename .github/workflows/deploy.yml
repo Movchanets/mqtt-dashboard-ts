@@ -23,6 +23,8 @@ jobs:
       VITE_MQTT_USERNAME: ${{ secrets.VITE_MQTT_USERNAME }}
       VITE_MQTT_PASSWORD: ${{ secrets.VITE_MQTT_PASSWORD }}
       VITE_MQTT_TOPIC: ${{ secrets.VITE_MQTT_TOPIC }}
+      VITE_FIREBASE_URL: ${{ secrets.VITE_FIREBASE_URL }}
+      VITE_FIREBASE_AUTH: ${{ secrets.VITE_FIREBASE_AUTH }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4

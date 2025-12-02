@@ -17,7 +17,7 @@ import {
   ScatterChart,
   Scatter,
 } from "recharts";
-import { ClockIcon, WifiIcon, SignalIcon } from "@heroicons/react/24/outline";
+import { ClockIcon, WifiIcon, SignalIcon, CloudArrowDownIcon } from "@heroicons/react/24/outline";
 import { format, subMinutes, isAfter } from "date-fns";
 
 // Тип даних для кожного повідомлення
@@ -26,6 +26,18 @@ interface MqttPayload {
   humidity: number;
   timestamp: string;
   fullTimestamp: Date;
+}
+
+// Firebase document type (key from Firebase, data inside)
+interface FirebaseDocument {
+  device_id: string;
+  temperature: number;
+  humidity: number;
+  timestamp: string;
+}
+
+interface FirebaseResponse {
+  [key: string]: FirebaseDocument;
 }
 
 // Опції для вибору діапазону часу
@@ -52,10 +64,7 @@ const chartTypes = [
 
 
 // Компонент для рендерингу різних типів графіків
-const ChartRenderer = ({ chartType, data }: { chartType: string, data: any[] }) => {
-  // Debug info
-  console.log('ChartRenderer:', { chartType, dataLength: data.length, sampleData: data.slice(0, 2) });
-  
+const ChartRenderer = ({ chartType, data }: { chartType: string, data: MqttPayload[] }) => {
   if (!data || data.length === 0) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -185,11 +194,100 @@ const ChartRenderer = ({ chartType, data }: { chartType: string, data: any[] }) 
 };
 
 function App() {
+  // Завантаження налаштувань з localStorage
   const [allData, setAllData] = useState<MqttPayload[]>([]);
-  const [selectedTimeRange, setSelectedTimeRange] = useState(timeRangeOptions[2]); // 30 хвилин за замовчуванням
-  const [selectedChartType, setSelectedChartType] = useState(chartTypes[0]); // Лінійний графік за замовчуванням
+  const [selectedTimeRange, setSelectedTimeRange] = useState(() => {
+    const saved = localStorage.getItem('selectedTimeRange');
+    if (saved) {
+      const found = timeRangeOptions.find(opt => opt.id === saved);
+      if (found) return found;
+    }
+    return timeRangeOptions[2]; // 30 хвилин за замовчуванням
+  });
+  const [selectedChartType, setSelectedChartType] = useState(() => {
+    const saved = localStorage.getItem('selectedChartType');
+    if (saved) {
+      const found = chartTypes.find(type => type.id === saved);
+      if (found) return found;
+    }
+    return chartTypes[0]; // Лінійний графік за замовчуванням
+  });
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+
+  // Firebase Realtime Database config
+  const FIREBASE_URL = import.meta.env.VITE_FIREBASE_URL;
+  const FIREBASE_AUTH = import.meta.env.VITE_FIREBASE_AUTH;
+
+  // Завантаження історичних даних з Firebase при старті
+  useEffect(() => {
+    const fetchHistoricalData = async () => {
+      if (!FIREBASE_URL) {
+        console.log('Firebase URL not configured, skipping history fetch');
+        return;
+      }
+
+      setIsLoadingHistory(true);
+      try {
+        // Firebase REST API: GET /measurements.json returns all data
+        // Add orderBy and limitToLast for recent records
+        let url = `${FIREBASE_URL}/measurements.json?orderBy="timestamp"&limitToLast=500`;
+        if (FIREBASE_AUTH) {
+          url += `&auth=${FIREBASE_AUTH}`;
+        }
+
+        const res = await fetch(url);
+
+        if (!res.ok) {
+          throw new Error(`Firebase API error: ${res.status}`);
+        }
+
+        const data: FirebaseResponse | null = await res.json();
+        
+        if (!data) {
+          console.log('No historical data in Firebase');
+          setHistoryLoaded(true);
+          return;
+        }
+
+        // Конвертуємо Firebase об'єкт в масив MqttPayload
+        const historicalData: MqttPayload[] = Object.values(data)
+          .map((doc: FirebaseDocument) => {
+            const fullTimestamp = new Date(doc.timestamp);
+            return {
+              temperature: doc.temperature,
+              humidity: doc.humidity,
+              timestamp: format(fullTimestamp, 'HH:mm:ss'),
+              fullTimestamp
+            };
+          })
+          .sort((a, b) => a.fullTimestamp.getTime() - b.fullTimestamp.getTime()); // Сортуємо від старіших до новіших
+
+        setAllData(historicalData);
+        setHistoryLoaded(true);
+        console.log(`✅ Loaded ${historicalData.length} historical records from Firebase`);
+      } catch (err) {
+        console.error('❌ Error fetching historical data:', err);
+        // Не показуємо помилку користувачу, продовжуємо без історії
+      } finally {
+        setIsLoadingHistory(false);
+      }
+    };
+
+    fetchHistoricalData();
+  }, [FIREBASE_URL, FIREBASE_AUTH]);
+
+  // Збереження налаштувань при зміні
+  useEffect(() => {
+    localStorage.setItem('selectedTimeRange', selectedTimeRange.id);
+  }, [selectedTimeRange]);
+
+  useEffect(() => {
+    localStorage.setItem('selectedChartType', selectedChartType.id);
+  }, [selectedChartType]);
 
   // Фільтрація даних за обраним діапазоном часу
   const filteredData = useMemo(() => {
@@ -221,58 +319,95 @@ function App() {
   }, [filteredData]);
 
   useEffect(() => {
-    const client: MqttClient = mqtt.connect(
-      "wss://5748ea66407f483d9e153b77e9105b77.s1.eu.hivemq.cloud:8884/mqtt",
-      {
-        username: "mqtt-front",
-        password: "Qwerty-1",
-        clientId: "react-dashboard-" + Math.random().toString(16).slice(2),
-        protocol: "wss",
-      }
-    );
+    const MQTT_BROKER = import.meta.env.VITE_MQTT_BROKER || "wss://5748ea66407f483d9e153b77e9105b77.s1.eu.hivemq.cloud:8884/mqtt";
+    const MQTT_USERNAME = import.meta.env.VITE_MQTT_USERNAME || "mqtt-front";
+    const MQTT_PASSWORD = import.meta.env.VITE_MQTT_PASSWORD || "Qwerty-1";
+    const MQTT_TOPIC = import.meta.env.VITE_MQTT_TOPIC || "esp32/dht11";
+    
+    const connectToMQTT = () => {
+      const client: MqttClient = mqtt.connect(
+        MQTT_BROKER,
+        {
+          username: MQTT_USERNAME,
+          password: MQTT_PASSWORD,
+          clientId: "react-dashboard-" + Math.random().toString(16).slice(2),
+          protocol: "wss",
+          reconnectPeriod: 5000, // Автоматичне перепідключення кожні 5 секунд
+          connectTimeout: 30000, // Таймаут підключення 30 секунд
+        }
+      );
 
-    client.on("connect", () => {
-      console.log("✅ Connected to HiveMQ Cloud");
-      setConnectionStatus('connected');
-      client.subscribe("esp32/dht11");
-    });
-
-    client.on("disconnect", () => {
-      console.log("❌ Disconnected from HiveMQ Cloud");
-      setConnectionStatus('disconnected');
-    });
-
-    client.on("message", (_topic: string, message: Buffer) => {
-      try {
-        const payload: MqttPayload = JSON.parse(message.toString());
-        const fullTimestamp = new Date(payload.timestamp);
-        const newPoint: MqttPayload = {
-          timestamp: format(fullTimestamp, 'HH:mm:ss'),
-          fullTimestamp,
-          temperature: payload.temperature,
-          humidity: payload.humidity,
-        };
-        
-        setAllData((prev) => {
-          // Зберігаємо до 1000 точок для покращеної продуктивності
-          const updated = [...prev, newPoint];
-          return updated.length > 1000 ? updated.slice(-1000) : updated;
+      client.on("connect", () => {
+        console.log("✅ Connected to HiveMQ Cloud");
+        setConnectionStatus('connected');
+        setError(null);
+        client.subscribe(MQTT_TOPIC, (err) => {
+          if (err) {
+            console.error("❌ Subscription error:", err);
+            setError("Помилка підписки на топік");
+          }
         });
-        setLastUpdate(new Date());
-      } catch (err) {
-        console.error("❌ Error parsing MQTT message:", err);
-      }
-    });
+      });
+
+      client.on("reconnect", () => {
+        console.log("🔄 Reconnecting to MQTT...");
+        setConnectionStatus('connecting');
+      });
+
+      client.on("disconnect", () => {
+        console.log("❌ Disconnected from HiveMQ Cloud");
+        setConnectionStatus('disconnected');
+      });
+
+      client.on("offline", () => {
+        console.log("📴 MQTT client offline");
+        setConnectionStatus('disconnected');
+      });
+
+      client.on("error", (err) => {
+        console.error("❌ MQTT Connection error:", err);
+        setError(`Помилка підключення: ${err.message}`);
+        setConnectionStatus('disconnected');
+      });
+
+      client.on("message", (_topic: string, message: Buffer) => {
+        try {
+          const payload: MqttPayload = JSON.parse(message.toString());
+          const fullTimestamp = new Date(payload.timestamp);
+          const newPoint: MqttPayload = {
+            timestamp: format(fullTimestamp, 'HH:mm:ss'),
+            fullTimestamp,
+            temperature: payload.temperature,
+            humidity: payload.humidity,
+          };
+          
+          setAllData((prev) => {
+            // Зберігаємо до 1000 точок для покращеної продуктивності
+            const updated = [...prev, newPoint];
+            return updated.length > 1000 ? updated.slice(-1000) : updated;
+          });
+          setLastUpdate(new Date());
+          setError(null); // Очищаємо помилку при успішному отриманні даних
+        } catch (err) {
+          console.error("❌ Error parsing MQTT message:", err);
+          setError("Помилка обробки даних");
+        }
+      });
+
+      return client;
+    };
+
+    const client = connectToMQTT();
 
     return () => {
-      client.end();
+      client.end(true); // Форсоване закриття при розмонтуванні
     };
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-100  flex items-center justify-center">
-      {/* Centered container */}
-      <div className="w-full max-w-4xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gray-50 centered flex ">
+      {/* Mobile-first container */}
+      <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
         {/* Header - Mobile First */}
         <div className="mb-6">
           <div className="text-center sm:text-left">
@@ -306,7 +441,37 @@ function App() {
                 Останнє оновлення: {format(lastUpdate, 'HH:mm:ss')}
               </div>
             )}
+
+            {/* MongoDB History Status */}
+            {isLoadingHistory && (
+              <div className="flex items-center justify-center sm:justify-start text-sm text-blue-600">
+                <CloudArrowDownIcon className="w-4 h-4 mr-1 flex-shrink-0 animate-pulse" />
+                Завантаження історії...
+              </div>
+            )}
+            {historyLoaded && !isLoadingHistory && (
+              <div className="flex items-center justify-center sm:justify-start text-sm text-green-600">
+                <CloudArrowDownIcon className="w-4 h-4 mr-1 flex-shrink-0" />
+                Історію завантажено ({allData.length} записів)
+              </div>
+            )}
           </div>
+          
+          {/* Error Banner */}
+          {error && (
+            <div className="mt-4 bg-red-50 border-l-4 border-red-500 p-4 rounded-lg">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-red-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <p className="text-sm text-red-700 font-medium">{error}</p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
         
 
