@@ -455,49 +455,45 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-blue-50 py-8 px-4">
+      <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <header className="mb-8">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
-                ESP32 DHT11 Dashboard
-              </h1>
-              <p className="text-slate-500 mt-1">
-                Real-time temperature and humidity monitoring
-              </p>
-            </div>
+        <header className="mb-10 text-center">
+          <h1 className="text-3xl sm:text-4xl font-bold text-slate-800 tracking-tight mb-2">
+            🌡️ ESP32 DHT11 Dashboard
+          </h1>
+          <p className="text-slate-500 text-lg mb-6">
+            Real-time temperature and humidity monitoring
+          </p>
+          
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            {getConnectionBadge()}
             
-            <div className="flex flex-wrap items-center gap-3">
-              {getConnectionBadge()}
-              
-              {lastUpdate && (
-                <Badge variant="outline" className="gap-1.5 text-slate-600">
-                  <Clock className="h-3 w-3" />
-                  {format(lastUpdate, 'HH:mm:ss')}
-                </Badge>
-              )}
+            {lastUpdate && (
+              <Badge variant="outline" className="gap-1.5 text-slate-600 bg-white">
+                <Clock className="h-3 w-3" />
+                {format(lastUpdate, 'HH:mm:ss')}
+              </Badge>
+            )}
 
-              {isLoadingHistory && (
-                <Badge variant="secondary" className="gap-1.5 animate-pulse">
-                  <CloudDownload className="h-3 w-3" />
-                  Завантаження...
-                </Badge>
-              )}
-              
-              {historyLoaded && !isLoadingHistory && (
-                <Badge variant="secondary" className="gap-1.5">
-                  <Database className="h-3 w-3" />
-                  {allData.length} записів
-                </Badge>
-              )}
-            </div>
+            {isLoadingHistory && (
+              <Badge variant="secondary" className="gap-1.5 animate-pulse bg-white">
+                <CloudDownload className="h-3 w-3" />
+                Завантаження...
+              </Badge>
+            )}
+            
+            {historyLoaded && !isLoadingHistory && (
+              <Badge variant="secondary" className="gap-1.5 bg-white">
+                <Database className="h-3 w-3" />
+                {allData.length} записів
+              </Badge>
+            )}
           </div>
           
           {/* Error Alert */}
           {error && (
-            <div className="mt-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
+            <div className="mt-6 flex items-center justify-center gap-2 rounded-lg border border-red-200 bg-red-50 p-4 text-red-700 max-w-xl mx-auto">
               <AlertCircle className="h-5 w-5 flex-shrink-0" />
               <span className="text-sm font-medium">{error}</span>
             </div>
@@ -505,8 +501,8 @@ function App() {
         </header>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <Card>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <Card className="shadow-md hover:shadow-lg transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-slate-600">
                 Середня температура
@@ -523,7 +519,7 @@ function App() {
             </CardContent>
           </Card>
           
-          <Card>
+          <Card className="shadow-md hover:shadow-lg transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-slate-600">
                 Середня вологість
@@ -540,7 +536,7 @@ function App() {
             </CardContent>
           </Card>
           
-          <Card>
+          <Card className="shadow-md hover:shadow-lg transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-slate-600">
                 Точок даних
@@ -557,7 +553,7 @@ function App() {
             </CardContent>
           </Card>
           
-          <Card>
+          <Card className="shadow-md hover:shadow-lg transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-slate-600">
                 Всього даних
@@ -576,16 +572,16 @@ function App() {
         </div>
 
         {/* Controls */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Налаштування візуалізації</CardTitle>
+        <Card className="mb-8 shadow-md">
+          <CardHeader className="text-center pb-4">
+            <CardTitle className="text-xl">⚙️ Налаштування візуалізації</CardTitle>
             <CardDescription>Оберіть діапазон часу та тип графіка</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-2xl mx-auto">
               <div className="space-y-2">
                 <label className="text-sm font-medium text-slate-700">
-                  Діапазон часу
+                  🕐 Діапазон часу
                 </label>
                 <Select
                   value={selectedTimeRange.id}
@@ -593,12 +589,12 @@ function App() {
                     setSelectedTimeRange(timeRangeOptions.find(opt => opt.id === value) || timeRangeOptions[2])
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="bg-white text-slate-900 border-slate-300">
                     <SelectValue placeholder="Оберіть період" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-white border-slate-200 shadow-lg">
                     {timeRangeOptions.map((option) => (
-                      <SelectItem key={option.id} value={option.id}>
+                      <SelectItem key={option.id} value={option.id} className="text-slate-900 hover:bg-slate-100">
                         {option.name}
                       </SelectItem>
                     ))}
@@ -608,7 +604,7 @@ function App() {
               
               <div className="space-y-2">
                 <label className="text-sm font-medium text-slate-700">
-                  Тип графіка
+                  📊 Тип графіка
                 </label>
                 <Select
                   value={selectedChartType.id}
@@ -616,12 +612,12 @@ function App() {
                     setSelectedChartType(chartTypes.find(type => type.id === value) || chartTypes[0])
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="bg-white text-slate-900 border-slate-300">
                     <SelectValue placeholder="Оберіть тип" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-white border-slate-200 shadow-lg">
                     {chartTypes.map((type) => (
-                      <SelectItem key={type.id} value={type.id}>
+                      <SelectItem key={type.id} value={type.id} className="text-slate-900 hover:bg-slate-100">
                         <span className="flex items-center gap-2">
                           {type.id === 'line' && <LineChartIcon className="h-4 w-4" />}
                           {type.id === 'area' && <AreaChartIcon className="h-4 w-4" />}
@@ -640,37 +636,35 @@ function App() {
         </Card>
 
         {/* Chart */}
-        <Card>
-          <CardHeader>
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  {selectedChartType.id === 'line' && <LineChartIcon className="h-5 w-5" />}
-                  {selectedChartType.id === 'area' && <AreaChartIcon className="h-5 w-5" />}
-                  {selectedChartType.id === 'bar' && <BarChart3 className="h-5 w-5" />}
-                  {selectedChartType.id === 'composed' && <LineChartIcon className="h-5 w-5" />}
-                  {selectedChartType.id === 'scatter' && <ScatterChartIcon className="h-5 w-5" />}
-                  {selectedChartType.name}
-                </CardTitle>
-                <CardDescription>
-                  Відображає дані за {selectedTimeRange.name.toLowerCase()}
-                </CardDescription>
-              </div>
+        <Card className="shadow-md">
+          <CardHeader className="text-center border-b border-slate-100 pb-4">
+            <div className="flex flex-col items-center gap-3">
+              <CardTitle className="flex items-center gap-2 text-xl">
+                {selectedChartType.id === 'line' && <LineChartIcon className="h-5 w-5" />}
+                {selectedChartType.id === 'area' && <AreaChartIcon className="h-5 w-5" />}
+                {selectedChartType.id === 'bar' && <BarChart3 className="h-5 w-5" />}
+                {selectedChartType.id === 'composed' && <LineChartIcon className="h-5 w-5" />}
+                {selectedChartType.id === 'scatter' && <ScatterChartIcon className="h-5 w-5" />}
+                {selectedChartType.name}
+              </CardTitle>
+              <CardDescription>
+                Відображає дані за {selectedTimeRange.name.toLowerCase()}
+              </CardDescription>
               
-              <div className="flex items-center gap-4 text-sm">
-                <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-6 text-sm mt-2">
+                <div className="flex items-center gap-2">
                   <div className="h-3 w-3 rounded-full bg-red-500" />
-                  <span className="text-slate-600">Температура</span>
+                  <span className="text-slate-600 font-medium">Температура</span>
                 </div>
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-2">
                   <div className="h-3 w-3 rounded-full bg-blue-500" />
-                  <span className="text-slate-600">Вологість</span>
+                  <span className="text-slate-600 font-medium">Вологість</span>
                 </div>
               </div>
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="h-64 sm:h-80 lg:h-96 w-full rounded-lg bg-slate-50/50 p-2 sm:p-4">
+          <CardContent className="pt-6">
+            <div className="h-72 sm:h-80 lg:h-96 w-full rounded-xl bg-white border border-slate-100 p-4 sm:p-6">
               {filteredData.length > 0 ? (
                 <ChartRenderer 
                   chartType={selectedChartType.id}
@@ -679,7 +673,7 @@ function App() {
               ) : (
                 <div className="flex items-center justify-center h-full">
                   <div className="text-center">
-                    <Activity className="w-10 h-10 text-slate-300 mx-auto mb-4" />
+                    <Activity className="w-12 h-12 text-slate-300 mx-auto mb-4" />
                     <p className="text-lg text-slate-500 font-medium mb-1">
                       Очікування даних...
                     </p>
