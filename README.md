@@ -4,7 +4,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?logo=typescript)](https://www.typescriptlang.org/)
 [![Vite](https://img.shields.io/badge/Vite-Latest-646CFF?logo=vite)](https://vitejs.dev/)
 [![ESP32](https://img.shields.io/badge/ESP32-Arduino-00979D?logo=arduino)](https://www.arduino.cc/)
-
+[![DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/Movchanets/mqtt-dashboard-ts)
 Повнофункціональний IoT дашборд для моніторингу температури та вологості в реальному часі з ESP32 через MQTT (HiveMQ Cloud).
 
 ## 📸 Особливості
