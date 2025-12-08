@@ -1,7 +1,20 @@
-// WiFi credentials - ЗАМІНІТЬ НА СВОЇ
-#define WIFI_SSID "TP-Link_Slavik"
-#define WIFI_PASSWORD "Password01072005"
 
+// The device will try to connect to each network in order until successful
+struct WiFiCredentials
+{
+	const char *ssid;
+	const char *password;
+};
+
+// Add as many networks as you need
+const WiFiCredentials wifiNetworks[] = {
+
+	{"slavikModem", "mzjt3672"},
+	{"TP-Link_Slavik", "Password01072005"},
+	{"Your_Work_WiFi_SSID", "Your_Work_Password"},
+};
+
+const int wifiNetworkCount = sizeof(wifiNetworks) / sizeof(wifiNetworks[0]);
 // MQTT HiveMQ Cloud credentials - ЗАМІНІТЬ НА СВОЇ
 #define MQTT_SERVER "5748ea66407f483d9e153b77e9105b77.s1.eu.hivemq.cloud"
 #define MQTT_PORT 8883
@@ -16,5 +29,5 @@
 #define DAYLIGHT_OFFSET_SEC 0
 
 // Firebase Realtime Database
-#define FIREBASE_HOST "https://mqtt-dashboard-2945b-default-rtdb.europe-west1.firebasedatabase.app/" // Firebase project URL (without https://)
-#define FIREBASE_AUTH "twaqt7WycdgP71bZhwkudpNAIfwMcYAhCAMXQO1A"									 // Database secret (Project Settings -> Service accounts -> Database secrets)
+#define FIREBASE_HOST "mqtt-dashboard-2945b-default-rtdb.europe-west1.firebasedatabase.app" // Firebase project URL (without https://)
+#define FIREBASE_AUTH "twaqt7WycdgP71bZhwkudpNAIfwMcYAhCAMXQO1A"							// Database secret (Project Settings -> Service accounts -> Database secrets)

@@ -25,8 +25,7 @@ DHT dht(DHTPIN, DHTTYPE);
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
 // ---------------- Використання констант з secrets.h ----------------
-const char *ssid = WIFI_SSID;
-const char *password = WIFI_PASSWORD;
+// WiFi credentials are now in wifiNetworks[] array from secrets.h
 const char *mqtt_server = MQTT_SERVER;
 const int mqtt_port = MQTT_PORT;
 const char *mqtt_client_id = MQTT_CLIENT_ID;
@@ -55,6 +54,9 @@ float lastTemp = -999.0;
 float lastHum = -999.0;
 int consecutiveErrors = 0;
 const int maxConsecutiveErrors = 10;
+
+// === Відстеження uptime та перезавантажень ===
+unsigned long bootTime = 0; // Час запуску в Unix timestamp
 
 // === Температурні пороги для LED ===
 // 5-точкові пороги для "теплової карти"
@@ -134,12 +136,28 @@ void updateLedColor(float temp)
 // ---------------- Firebase Realtime Database POST ----------------
 void sendToFirebase(float temperature, float humidity, String timestamp)
 {
+	// Перевіряємо WiFi з'єднання
+	if (WiFi.status() != WL_CONNECTED)
+	{
+		Serial.println("✗ Firebase skipped: WiFi not connected");
+		return;
+	}
+
 	WiFiClientSecure firebaseClient;
 	firebaseClient.setInsecure(); // Для спрощення; у production використовуйте сертифікати
 
 	HTTPClient https;
+
 	// Firebase REST API: POST to /measurements.json creates a new entry with auto-generated key
-	String url = String("https://") + firebase_host + "/measurements.json?auth=" + firebase_auth;
+	String url;
+
+	url = String("https://") + firebase_host + "/measurements.json";
+
+	// Якщо є auth token, додаємо його
+	if (String(firebase_auth).length() > 0)
+	{
+		url += "?auth=" + String(firebase_auth);
+	}
 
 	// Формуємо JSON payload
 	String json = "{";
@@ -149,43 +167,126 @@ void sendToFirebase(float temperature, float humidity, String timestamp)
 	json += "\"timestamp\":\"" + timestamp + "\"";
 	json += "}";
 
-	Serial.println("Firebase POST: " + url);
+	Serial.println("=== Firebase POST ===");
+	Serial.println("URL: " + url);
+	Serial.println("JSON: " + json);
 
 	if (https.begin(firebaseClient, url))
 	{
 		https.addHeader("Content-Type", "application/json");
+		https.setTimeout(15000); // 15 секунд таймаут
 
 		int httpCode = https.POST(json);
 		if (httpCode > 0)
 		{
-			Serial.printf("Firebase response: %d\n", httpCode);
-			if (httpCode == 200)
+			String response = https.getString();
+			Serial.printf("Firebase response code: %d\n", httpCode);
+			Serial.println("Firebase response body: " + response);
+
+			// Firebase повертає 200 для успішного POST
+			if (httpCode == 200 || httpCode == 201)
 			{
-				String response = https.getString();
-				Serial.println("Firebase insert SUCCESS: " + response);
+				Serial.println("✓ Firebase insert SUCCESS!");
+			}
+			else if (httpCode == 401)
+			{
+				Serial.println("✗ Firebase AUTH ERROR: Перевірте FIREBASE_AUTH token");
+			}
+			else if (httpCode == 403)
+			{
+				Serial.println("✗ Firebase PERMISSION ERROR: Перевірте Database Rules");
+			}
+			else if (httpCode == 404)
+			{
+				Serial.println("✗ Firebase NOT FOUND: Перевірте FIREBASE_HOST");
 			}
 			else
 			{
-				String response = https.getString();
-				Serial.println("Firebase error: " + response);
+				Serial.printf("✗ Firebase unexpected code: %d\n", httpCode);
 			}
 		}
 		else
 		{
-			Serial.printf("Firebase POST failed: %s\n", https.errorToString(httpCode).c_str());
+			Serial.printf("✗ Firebase POST failed: %s\n", https.errorToString(httpCode).c_str());
 		}
 		https.end();
 	}
 	else
 	{
-		Serial.println("Firebase HTTPS connection failed");
+		Serial.println("✗ Firebase HTTPS connection failed");
 	}
+}
+
+// ---------------- WiFi reconnect - спроба підключитися до доступної мережі ----------------
+bool reconnectWiFi()
+{
+	Serial.println("=== Спроба перепідключення WiFi ===");
+	WiFi.disconnect();
+	delay(1000);
+
+	for (int i = 0; i < wifiNetworkCount; i++)
+	{
+		Serial.print("Пробую мережу: ");
+		Serial.println(wifiNetworks[i].ssid);
+
+		display.clearDisplay();
+		display.setCursor(0, 0);
+		display.setTextSize(1);
+		display.println("WiFi reconnecting:");
+		display.println(wifiNetworks[i].ssid);
+		display.display();
+
+		WiFi.begin(wifiNetworks[i].ssid, wifiNetworks[i].password);
+
+		int attempts = 0;
+		while (WiFi.status() != WL_CONNECTED && attempts < 20)
+		{
+			delay(500);
+			Serial.print(".");
+			attempts++;
+		}
+
+		if (WiFi.status() == WL_CONNECTED)
+		{
+			Serial.println("\n✓ WiFi перепідключено: " + String(wifiNetworks[i].ssid));
+			Serial.print("IP: ");
+			Serial.println(WiFi.localIP());
+			return true;
+		}
+		else
+		{
+			Serial.println("\n✗ Не вдалося");
+			WiFi.disconnect();
+		}
+	}
+
+	Serial.println("✗ Жодна WiFi мережа не доступна!");
+	return false;
 }
 
 // ---------------- MQTT reconnect ----------------
 void reconnect()
 {
-	// === ЗМІНА 1: ЧЕРВОНИЙ = Помилка мережі/MQTT ===
+	// Перевіряємо WiFi з'єднання перед MQTT
+	if (WiFi.status() != WL_CONNECTED)
+	{
+		Serial.println("WiFi відключено! Спроба перепідключення...");
+		setRGB(255, 150, 0); // Помаранчевий = проблема з WiFi
+
+		if (!reconnectWiFi())
+		{
+			Serial.println("Не вдалося відновити WiFi. Перезавантаження...");
+			delay(5000);
+			ESP.restart();
+			return;
+		}
+
+		// Після перепідключення WiFi, ресинхронізуємо час
+		configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+		delay(2000);
+	}
+
+	// === ЧЕРВОНИЙ = Помилка MQTT ===
 	setRGB(255, 0, 0);
 	int attempts = 0;
 	const int maxAttempts = 5;
@@ -228,17 +329,79 @@ void reconnect()
 
 String getTimeString()
 {
+	time_t now;
+	time(&now);
 	struct tm timeinfo;
-	if (!getLocalTime(&timeinfo))
-		return "NoTime";
+	// UTC to avoid DST/offset issues; explicit Z suffix
+	gmtime_r(&now, &timeinfo);
 	char buffer[25];
-	strftime(buffer, sizeof(buffer), "%Y-%m-%d %T", &timeinfo);
+	strftime(buffer, sizeof(buffer), "%Y-%m-%dT%H:%M:%SZ", &timeinfo);
 	return String(buffer);
+}
+
+String getUptimeString()
+{
+	unsigned long uptimeSeconds = millis() / 1000;
+	unsigned long days = uptimeSeconds / 86400;
+	unsigned long hours = (uptimeSeconds % 86400) / 3600;
+	unsigned long minutes = (uptimeSeconds % 3600) / 60;
+	unsigned long seconds = uptimeSeconds % 60;
+
+	String uptime = "";
+	if (days > 0)
+		uptime += String(days) + "d ";
+	uptime += String(hours) + "h " + String(minutes) + "m " + String(seconds) + "s";
+	return uptime;
 }
 
 void setup()
 {
 	Serial.begin(9600);
+	delay(1000); // Даємо Serial Monitor час підключитися
+
+	Serial.println("\n\n==========================");
+	Serial.println("  ESP32 DHT11 + MQTT");
+	Serial.println("==========================");
+
+	// Виводимо причину перезавантаження
+	esp_reset_reason_t reset_reason = esp_reset_reason();
+	Serial.print("Причина запуску: ");
+	switch (reset_reason)
+	{
+	case ESP_RST_POWERON:
+		Serial.println("Power-on reset");
+		break;
+	case ESP_RST_SW:
+		Serial.println("Software reset");
+		break;
+	case ESP_RST_PANIC:
+		Serial.println("Exception/panic");
+		break;
+	case ESP_RST_INT_WDT:
+		Serial.println("Interrupt watchdog");
+		break;
+	case ESP_RST_TASK_WDT:
+		Serial.println("Task watchdog");
+		break;
+	case ESP_RST_WDT:
+		Serial.println("Other watchdog");
+		break;
+	case ESP_RST_DEEPSLEEP:
+		Serial.println("Deep sleep wake");
+		break;
+	case ESP_RST_BROWNOUT:
+		Serial.println("Brownout reset");
+		break;
+	case ESP_RST_SDIO:
+		Serial.println("SDIO reset");
+		break;
+	default:
+		Serial.println("Unknown");
+		break;
+	}
+	Serial.println("==========================");
+	Serial.println();
+
 	dht.begin();
 
 	// === ЗМІНА 2: Ініціалізуємо LED піни на самому початку ===
@@ -269,16 +432,56 @@ void setup()
 	// Жовтий = підключення до WiFi
 	setRGB(255, 200, 0);
 
-	// WiFi
-	Serial.print("WiFi: ");
-	Serial.println(ssid);
-	WiFi.begin(ssid, password);
-	while (WiFi.status() != WL_CONNECTED)
+	// WiFi - спроба підключення до кожної мережі з масиву
+	bool wifiConnected = false;
+	for (int i = 0; i < wifiNetworkCount && !wifiConnected; i++)
 	{
-		delay(500);
-		Serial.print(".");
+		Serial.print("Спроба підключення до WiFi: ");
+		Serial.println(wifiNetworks[i].ssid);
+
+		display.clearDisplay();
+		display.setCursor(0, 0);
+		display.println("Connecting to:");
+		display.println(wifiNetworks[i].ssid);
+		display.display();
+
+		WiFi.begin(wifiNetworks[i].ssid, wifiNetworks[i].password);
+
+		// Чекаємо до 10 секунд на підключення
+		int attempts = 0;
+		while (WiFi.status() != WL_CONNECTED && attempts < 20)
+		{
+			delay(500);
+			Serial.print(".");
+			attempts++;
+		}
+
+		if (WiFi.status() == WL_CONNECTED)
+		{
+			wifiConnected = true;
+			Serial.println("\nWiFi OK: " + String(wifiNetworks[i].ssid));
+			Serial.print("IP адреса: ");
+			Serial.println(WiFi.localIP());
+		}
+		else
+		{
+			Serial.println("\nНе вдалося підключитися до " + String(wifiNetworks[i].ssid));
+			WiFi.disconnect();
+		}
 	}
-	Serial.println("\nWiFi OK");
+
+	if (!wifiConnected)
+	{
+		Serial.println("ПОМИЛКА: Не вдалося підключитися до жодної WiFi мережі!");
+		display.clearDisplay();
+		display.setCursor(0, 0);
+		display.println("WiFi Failed!");
+		display.println("Check networks");
+		display.display();
+		setRGB(255, 0, 0);
+		delay(5000);
+		ESP.restart();
+	}
 
 	// Синій = підключення до MQTT/NTP
 	setRGB(0, 0, 255);
@@ -300,6 +503,17 @@ void setup()
 		delay(500);
 	}
 	Serial.println("\nЧас синхронізовано!");
+
+	// Зберігаємо час запуску (Unix timestamp)
+	time_t now;
+	time(&now);
+	bootTime = now;
+
+	// Виводимо інформацію про запуск
+	Serial.print("Час запуску: ");
+	Serial.println(getTimeString());
+	Serial.println();
+
 	// MQTT
 	secureClient.setInsecure();
 	client.setServer(mqtt_server, mqtt_port);
@@ -311,6 +525,13 @@ void setup()
 
 void loop()
 {
+	// Перевіряємо WiFi з'єднання на початку кожного циклу
+	if (WiFi.status() != WL_CONNECTED)
+	{
+		Serial.println("⚠ WiFi втрачено в loop()!");
+		reconnect(); // reconnect() тепер сам перепідключить WiFi
+	}
+
 	if (!client.connected())
 	{
 		reconnect();
@@ -343,11 +564,13 @@ void loop()
 		}
 		else
 		{
-			Serial.printf("Зчитано: T=%.1f, H=%.1f\n", t, h);
+			Serial.printf("Зчитано: T=%.1f°C, H=%.1f%% | Uptime: %s\n", t, h, getUptimeString().c_str());
 
 			if (t != lastTemp || h != lastHum)
 			{
-				Serial.println("Дані ЗМІНИЛИСЯ. Публікація MQTT...");
+				Serial.println("┌─── Дані ЗМІНИЛИСЯ - Публікація ───");
+				Serial.printf("│ ΔT: %.1f → %.1f°C\n", lastTemp, t);
+				Serial.printf("│ ΔH: %.1f → %.1f%%\n", lastHum, h);
 
 				lastTemp = t;
 				lastHum = h;
@@ -359,7 +582,7 @@ void loop()
 
 				if (client.publish(mqtt_topic, payload.c_str()))
 				{
-					Serial.println("MQTT publish SUCCESS");
+					Serial.println("│ ✓ MQTT publish SUCCESS");
 					lastSuccessfulMQTT = millis();
 					consecutiveErrors = 0;
 
@@ -368,9 +591,10 @@ void loop()
 				}
 				else
 				{
-					Serial.println("MQTT publish FAIL");
+					Serial.println("│ ✗ MQTT publish FAIL");
 					consecutiveErrors++;
 				}
+				Serial.println("└────────────────────────────────────");
 			}
 			else
 			{
@@ -396,10 +620,34 @@ void loop()
 		String timestr = getTimeString();
 
 		display.clearDisplay();
-		display.setCursor(0, 0);
 		display.setTextSize(1);
+		display.setCursor(0, 0);
 
-		display.print("Temp: ");
+		// === Рядок 1: WiFi статус та назва мережі ===
+		display.print("WiFi:");
+		if (WiFi.status() == WL_CONNECTED)
+		{
+			display.print(WiFi.SSID());
+		}
+		else
+		{
+			display.print("DISCONNECTED");
+		}
+		display.println();
+
+		// === Рядок 2: MQTT статус ===
+		display.print("MQTT:");
+		if (client.connected())
+		{
+			display.println("OK");
+		}
+		else
+		{
+			display.println("FAIL");
+		}
+
+		// === Рядок 3: Температура (більший шрифт) ===
+		display.setTextSize(2);
 		if (lastTemp == -999.0)
 			display.println("--.- C");
 		else
@@ -408,7 +656,7 @@ void loop()
 			display.println(" C");
 		}
 
-		display.print("Hum : ");
+		// === Рядок 4: Вологість (більший шрифт) ===
 		if (lastHum == -999.0)
 			display.println("--.- %");
 		else
@@ -417,8 +665,20 @@ void loop()
 			display.println(" %");
 		}
 
-		display.println("-----------------");
+		// === Рядок 5-6: Час та uptime ===
+		display.setTextSize(1);
 		display.println(timestr);
+
+		// Uptime
+		unsigned long uptimeSeconds = millis() / 1000;
+		unsigned long hours = uptimeSeconds / 3600;
+		unsigned long minutes = (uptimeSeconds % 3600) / 60;
+		display.print("Up:");
+		display.print(hours);
+		display.print("h ");
+		display.print(minutes);
+		display.print("m");
+
 		display.display();
 	}
 }
