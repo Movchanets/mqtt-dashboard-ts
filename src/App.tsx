@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -217,8 +218,31 @@ const ChartRenderer = ({ chartType, data }: { chartType: string, data: MqttPaylo
 };
 
 function App() {
+  const exportToCsv = () => {
+    if (!filteredData.length) return;
+    const headers = ['timestamp_iso', 'temperature_c', 'humidity_pct'];
+    const rows = filteredData.map((d) => [
+      d.fullTimestamp.toISOString(),
+      d.temperature.toFixed(1),
+      d.humidity.toFixed(1)
+    ].join(','));
+
+    const csvContent = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `esp32-data-${format(new Date(), 'yyyyMMdd-HHmmss')}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   // Завантаження налаштувань з localStorage
   const [allData, setAllData] = useState<MqttPayload[]>([]);
+  const [isDarkMode] = useState(() => {
+    // Завжди визначаємо тему з налаштувань пристрою
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  });
   const [selectedTimeRange, setSelectedTimeRange] = useState(() => {
     const saved = localStorage.getItem('selectedTimeRange');
     if (saved) {
@@ -312,6 +336,17 @@ function App() {
   useEffect(() => {
     localStorage.setItem('selectedChartType', selectedChartType.id);
   }, [selectedChartType]);
+
+  // Темна тема - автоматично з пристрою
+  useEffect(() => {
+    const root = document.documentElement;
+    
+    if (isDarkMode) {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+  }, [isDarkMode]);
 
   // Фільтрація даних за обраним діапазоном часу
   const filteredData = useMemo(() => {
@@ -455,14 +490,18 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-blue-50 py-8 px-4">
-      <div className="max-w-6xl mx-auto">
+    <div className={`min-h-screen bg-gradient-to-br py-10 px-4 sm:px-6 lg:px-8 transition-colors ${
+      isDarkMode
+        ? 'from-slate-900 via-slate-800 to-slate-900'
+        : 'from-slate-100 via-slate-50 to-blue-50'
+    }`}>
+      <div className="max-w-5xl mx-auto space-y-8 lg:space-y-10 px-1 sm:px-2">
         {/* Header */}
-        <header className="mb-10 text-center">
-          <h1 className="text-3xl sm:text-4xl font-bold text-slate-800 tracking-tight mb-2">
+        <header className="mb-6 sm:mb-8 text-center space-y-4 px-3 sm:px-4">
+          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
             🌡️ ESP32 DHT11 Dashboard
           </h1>
-          <p className="text-slate-500 text-lg mb-6">
+          <p className="text-lg text-slate-600 dark:text-slate-400">
             Real-time temperature and humidity monitoring
           </p>
           
@@ -470,21 +509,21 @@ function App() {
             {getConnectionBadge()}
             
             {lastUpdate && (
-              <Badge variant="outline" className="gap-1.5 text-slate-600 bg-white">
+              <Badge variant="outline" className="gap-1.5 text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700">
                 <Clock className="h-3 w-3" />
                 {format(lastUpdate, 'HH:mm:ss')}
               </Badge>
             )}
 
             {isLoadingHistory && (
-              <Badge variant="secondary" className="gap-1.5 animate-pulse bg-white">
+              <Badge variant="secondary" className="gap-1.5 animate-pulse bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
                 <CloudDownload className="h-3 w-3" />
                 Завантаження...
               </Badge>
             )}
             
             {historyLoaded && !isLoadingHistory && (
-              <Badge variant="secondary" className="gap-1.5 bg-white">
+              <Badge variant="secondary" className="gap-1.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
                 <Database className="h-3 w-3" />
                 {allData.length} записів
               </Badge>
@@ -493,7 +532,7 @@ function App() {
           
           {/* Error Alert */}
           {error && (
-            <div className="mt-6 flex items-center justify-center gap-2 rounded-lg border border-red-200 bg-red-50 p-4 text-red-700 max-w-xl mx-auto">
+            <div className="mt-6 flex items-center justify-center gap-2 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/30 p-4 text-red-700 dark:text-red-400 max-w-xl mx-auto">
               <AlertCircle className="h-5 w-5 flex-shrink-0" />
               <span className="text-sm font-medium">{error}</span>
             </div>
@@ -501,70 +540,70 @@ function App() {
         </header>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card className="shadow-md hover:shadow-lg transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-slate-600">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5 lg:gap-6 mb-4 max-w-5xl mx-auto px-3 sm:px-4">
+          <Card className="shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 bg-gradient-to-br from-white to-slate-50 dark:from-slate-800/90 dark:to-slate-900/70 border border-slate-100/80 dark:border-slate-700/70 ring-1 ring-slate-100/70 dark:ring-slate-800/60 rounded-xl">
+            <CardHeader className="flex flex-row items-center justify-between pb-1 px-5 sm:px-6 pt-4">
+              <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-300">
                 Середня температура
               </CardTitle>
-              <Thermometer className="h-4 w-4 text-red-500" />
+              <Thermometer className="h-5 w-5 text-red-500 flex-shrink-0 ml-3" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-600">
+            <CardContent className="px-5 sm:px-6 pb-4 pt-1 space-y-1">
+              <div className="text-2xl font-bold text-red-600 dark:text-red-400 leading-tight tracking-tight">
                 {stats.avgTemp.toFixed(1)}°C
               </div>
-              <p className="text-xs text-slate-500 mt-1">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                 {stats.minTemp.toFixed(1)}°C — {stats.maxTemp.toFixed(1)}°C
               </p>
             </CardContent>
           </Card>
           
-          <Card className="shadow-md hover:shadow-lg transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-slate-600">
+          <Card className="shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 bg-gradient-to-br from-white to-slate-50 dark:from-slate-800/90 dark:to-slate-900/70 border border-slate-100/80 dark:border-slate-700/70 ring-1 ring-slate-100/70 dark:ring-slate-800/60 rounded-xl">
+            <CardHeader className="flex flex-row items-center justify-between pb-1 px-5 sm:px-6 pt-4">
+              <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-300">
                 Середня вологість
               </CardTitle>
-              <Droplets className="h-4 w-4 text-blue-500" />
+              <Droplets className="h-5 w-5 text-blue-500 flex-shrink-0 ml-3" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600">
+            <CardContent className="px-5 sm:px-6 pb-4 pt-1 space-y-1">
+              <div className="text-2xl font-bold text-blue-600 leading-tight tracking-tight">
                 {stats.avgHumidity.toFixed(1)}%
               </div>
-              <p className="text-xs text-slate-500 mt-1">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                 {stats.minHumidity.toFixed(1)}% — {stats.maxHumidity.toFixed(1)}%
               </p>
             </CardContent>
           </Card>
           
-          <Card className="shadow-md hover:shadow-lg transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-slate-600">
+          <Card className="shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 bg-gradient-to-br from-white to-slate-50 dark:from-slate-800/90 dark:to-slate-900/70 border border-slate-100/80 dark:border-slate-700/70 ring-1 ring-slate-100/70 dark:ring-slate-800/60 rounded-xl">
+            <CardHeader className="flex flex-row items-center justify-between pb-1 px-5 sm:px-6 pt-4">
+              <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-300">
                 Точок даних
               </CardTitle>
-              <Activity className="h-4 w-4 text-indigo-500" />
+              <Activity className="h-5 w-5 text-indigo-500 flex-shrink-0 ml-3" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-indigo-600">
+            <CardContent className="px-5 sm:px-6 pb-4 pt-1 space-y-1">
+              <div className="text-2xl font-bold text-indigo-600 dark:text-indigo-400 leading-tight tracking-tight">
                 {filteredData.length}
               </div>
-              <p className="text-xs text-slate-500 mt-1">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                 за обраний період
               </p>
             </CardContent>
           </Card>
           
-          <Card className="shadow-md hover:shadow-lg transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-slate-600">
+          <Card className="shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 bg-gradient-to-br from-white to-slate-50 dark:from-slate-800/90 dark:to-slate-900/70 border border-slate-100/80 dark:border-slate-700/70 ring-1 ring-slate-100/70 dark:ring-slate-800/60 rounded-xl sm:col-span-2 xl:col-span-1">
+            <CardHeader className="flex flex-row items-center justify-between pb-1 px-5 sm:px-6 pt-4">
+              <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-300">
                 Всього даних
               </CardTitle>
-              <Database className="h-4 w-4 text-purple-500" />
+              <Database className="h-5 w-5 text-purple-500 flex-shrink-0 ml-3" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-purple-600">
+            <CardContent className="px-5 sm:px-6 pb-4 pt-1 space-y-1">
+              <div className="text-2xl font-bold text-purple-600 dark:text-purple-400 leading-tight tracking-tight">
                 {allData.length}
               </div>
-              <p className="text-xs text-slate-500 mt-1">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                 збережено
               </p>
             </CardContent>
@@ -572,38 +611,41 @@ function App() {
         </div>
 
         {/* Controls */}
-        <Card className="mb-8 shadow-md">
-          <CardHeader className="text-center pb-4">
-            <CardTitle className="text-xl">⚙️ Налаштування візуалізації</CardTitle>
-            <CardDescription>Оберіть діапазон часу та тип графіка</CardDescription>
+        <Card className="mb-8 shadow-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/70 rounded-xl">
+          <CardHeader className="text-center pb-4 px-4 sm:px-6">
+            <CardTitle className="text-xl text-slate-900 dark:text-slate-100">⚙️ Налаштування візуалізації</CardTitle>
+            <CardDescription className="text-slate-600 dark:text-slate-400">Оберіть діапазон часу та тип графіка</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-2xl mx-auto">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">
+          <CardContent className="px-4 sm:px-6 pb-6">
+            <div className="space-y-6 max-w-4xl mx-auto">
+              <div className="space-y-3">
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
                   🕐 Діапазон часу
                 </label>
                 <Select
                   value={selectedTimeRange.id}
-                  onValueChange={(value: string) => 
-                    setSelectedTimeRange(timeRangeOptions.find(opt => opt.id === value) || timeRangeOptions[2])
+                  onValueChange={(value: string) =>
+                    setSelectedTimeRange(timeRangeOptions.find((opt) => opt.id === value) || timeRangeOptions[2])
                   }
                 >
-                  <SelectTrigger className="bg-white text-slate-900 border-slate-300">
+                  <SelectTrigger className="w-full">
                     <SelectValue placeholder="Оберіть період" />
                   </SelectTrigger>
-                  <SelectContent className="bg-white border-slate-200 shadow-lg">
+                  <SelectContent>
                     {timeRangeOptions.map((option) => (
-                      <SelectItem key={option.id} value={option.id} className="text-slate-900 hover:bg-slate-100">
+                      <SelectItem key={option.id} value={option.id}>
                         {option.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Показано {filteredData.length} точок за обраний період
+                </p>
               </div>
               
               <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
                   📊 Тип графіка
                 </label>
                 <Select
@@ -612,12 +654,12 @@ function App() {
                     setSelectedChartType(chartTypes.find(type => type.id === value) || chartTypes[0])
                   }
                 >
-                  <SelectTrigger className="bg-white text-slate-900 border-slate-300">
+                  <SelectTrigger>
                     <SelectValue placeholder="Оберіть тип" />
                   </SelectTrigger>
-                  <SelectContent className="bg-white border-slate-200 shadow-lg">
+                  <SelectContent>
                     {chartTypes.map((type) => (
-                      <SelectItem key={type.id} value={type.id} className="text-slate-900 hover:bg-slate-100">
+                      <SelectItem key={type.id} value={type.id}>
                         <span className="flex items-center gap-2">
                           {type.id === 'line' && <LineChartIcon className="h-4 w-4" />}
                           {type.id === 'area' && <AreaChartIcon className="h-4 w-4" />}
@@ -631,15 +673,26 @@ function App() {
                   </SelectContent>
                 </Select>
               </div>
+
+              <div className="flex justify-end">
+                <Button
+                  onClick={exportToCsv}
+                  variant="secondary"
+                  className="gap-2 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600"
+                >
+                  <CloudDownload className="h-4 w-4" />
+                  Експорт CSV
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
 
         {/* Chart */}
-        <Card className="shadow-md">
-          <CardHeader className="text-center border-b border-slate-100 pb-4">
+        <Card className="shadow-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/70 rounded-xl">
+          <CardHeader className="text-center border-b border-slate-200 dark:border-slate-700 pb-4 px-4 sm:px-6">
             <div className="flex flex-col items-center gap-3">
-              <CardTitle className="flex items-center gap-2 text-xl">
+              <CardTitle className="flex items-center gap-2 text-xl text-slate-900 dark:text-slate-100">
                 {selectedChartType.id === 'line' && <LineChartIcon className="h-5 w-5" />}
                 {selectedChartType.id === 'area' && <AreaChartIcon className="h-5 w-5" />}
                 {selectedChartType.id === 'bar' && <BarChart3 className="h-5 w-5" />}
@@ -647,24 +700,24 @@ function App() {
                 {selectedChartType.id === 'scatter' && <ScatterChartIcon className="h-5 w-5" />}
                 {selectedChartType.name}
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-slate-600 dark:text-slate-400">
                 Відображає дані за {selectedTimeRange.name.toLowerCase()}
               </CardDescription>
               
               <div className="flex items-center gap-6 text-sm mt-2">
                 <div className="flex items-center gap-2">
                   <div className="h-3 w-3 rounded-full bg-red-500" />
-                  <span className="text-slate-600 font-medium">Температура</span>
+                  <span className="text-slate-600 dark:text-slate-300 font-medium">Температура</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="h-3 w-3 rounded-full bg-blue-500" />
-                  <span className="text-slate-600 font-medium">Вологість</span>
+                  <span className="text-slate-600 dark:text-slate-300 font-medium">Вологість</span>
                 </div>
               </div>
             </div>
           </CardHeader>
           <CardContent className="pt-6">
-            <div className="h-72 sm:h-80 lg:h-96 w-full rounded-xl bg-white border border-slate-100 p-4 sm:p-6">
+            <div className="h-[360px] sm:h-[400px] lg:h-[440px] w-full rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700/80 p-5 sm:p-6 shadow-inner">
               {filteredData.length > 0 ? (
                 <ChartRenderer 
                   chartType={selectedChartType.id}
@@ -673,11 +726,11 @@ function App() {
               ) : (
                 <div className="flex items-center justify-center h-full">
                   <div className="text-center">
-                    <Activity className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-                    <p className="text-lg text-slate-500 font-medium mb-1">
+                    <Activity className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
+                    <p className="text-lg text-slate-500 dark:text-slate-400 font-medium mb-1">
                       Очікування даних...
                     </p>
-                    <p className="text-sm text-slate-400">
+                    <p className="text-sm text-slate-400 dark:text-slate-500">
                       Переконайтеся, що ESP32 підключений
                     </p>
                   </div>
