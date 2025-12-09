@@ -36,6 +36,11 @@ const char *ntpServer = NTP_SERVER;
 const long gmtOffset_sec = GMT_OFFSET_SEC;
 const int daylightOffset_sec = DAYLIGHT_OFFSET_SEC;
 
+// Month names for human-readable display
+const char *MONTH_NAMES[12] = {
+	"January", "February", "March", "April", "May", "June",
+	"July", "August", "September", "October", "November", "December"};
+
 // Firebase Realtime Database
 const char *firebase_host = FIREBASE_HOST; // e.g. "your-project.firebaseio.com"
 const char *firebase_auth = FIREBASE_AUTH; // Database secret or Auth token
@@ -354,6 +359,25 @@ String getUptimeString()
 	return uptime;
 }
 
+// Human-readable date/time for OLED: e.g. "December 8" and "21:21:20"
+void getDisplayDateTime(String &dateLine, String &timeLine)
+{
+	time_t now;
+	time(&now);
+	struct tm timeinfo;
+	// Use localtime so offsets from configTime are respected
+	localtime_r(&now, &timeinfo);
+
+	char dateBuf[24];
+	snprintf(dateBuf, sizeof(dateBuf), "%s %d", MONTH_NAMES[timeinfo.tm_mon], timeinfo.tm_mday);
+
+	char timeBuf[12];
+	strftime(timeBuf, sizeof(timeBuf), "%H:%M:%S", &timeinfo);
+
+	dateLine = String(dateBuf);
+	timeLine = String(timeBuf);
+}
+
 void setup()
 {
 	Serial.begin(9600);
@@ -540,8 +564,14 @@ void loop()
 
 	unsigned long currentTime = millis();
 
+	// Якщо MQTT зараз підключений, оновлюємо "heartbeat" щоб не перезапускати дарма
+	if (client.connected())
+	{
+		lastSuccessfulMQTT = currentTime;
+	}
+
 	// Watchdog: перевірка чи MQTT працює
-	if (lastSuccessfulMQTT > 0 && (currentTime - lastSuccessfulMQTT > mqttTimeoutInterval))
+	if (!client.connected() && lastSuccessfulMQTT > 0 && (currentTime - lastSuccessfulMQTT > mqttTimeoutInterval))
 	{
 		Serial.println("MQTT Watchdog: Довго немає зв'язку. Перезавантаження...");
 		delay(1000);
@@ -617,7 +647,8 @@ void loop()
 		// (Якщо була помилка MQTT, колір залишиться червоним до наступного
 		//  вдалого зчитування сенсора)
 
-		String timestr = getTimeString();
+		String dateLine, timeLine;
+		getDisplayDateTime(dateLine, timeLine);
 
 		display.clearDisplay();
 		display.setTextSize(1);
@@ -646,8 +677,8 @@ void loop()
 			display.println("FAIL");
 		}
 
-		// === Рядок 3: Температура (більший шрифт) ===
-		display.setTextSize(2);
+		// === Рядок 3: Температура (трохи менший шрифт) ===
+		display.setTextSize(1);
 		if (lastTemp == -999.0)
 			display.println("--.- C");
 		else
@@ -656,7 +687,7 @@ void loop()
 			display.println(" C");
 		}
 
-		// === Рядок 4: Вологість (більший шрифт) ===
+		// === Рядок 4: Вологість (трохи менший шрифт) ===
 		if (lastHum == -999.0)
 			display.println("--.- %");
 		else
@@ -665,9 +696,11 @@ void loop()
 			display.println(" %");
 		}
 
-		// === Рядок 5-6: Час та uptime ===
+		// === Рядок 5-6: Дата та час (менший час, щоб влізав) ===
 		display.setTextSize(1);
-		display.println(timestr);
+		display.println(dateLine);
+		display.println(timeLine);
+		display.setTextSize(1);
 
 		// Uptime
 		unsigned long uptimeSeconds = millis() / 1000;
