@@ -28,3 +28,8 @@ Arduino/secrets.h
 *.njsproj
 *.sln
 *.sw?
+main.tex
+presentation_plan.md
+presentation_qna.md
+Arduino/program/secrets.h
+Arduino/program/secrets.h
