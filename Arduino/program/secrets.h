@@ -25,7 +25,7 @@ const int wifiNetworkCount = sizeof(wifiNetworks) / sizeof(wifiNetworks[0]);
 
 // NTP Configuration
 #define NTP_SERVER "pool.ntp.org"
-#define GMT_OFFSET_SEC (3 * 3600) // GMT+3 для України
+#define GMT_OFFSET_SEC (2 * 3600) // GMT+3 для України
 #define DAYLIGHT_OFFSET_SEC 0
 
 // Firebase Realtime Database
